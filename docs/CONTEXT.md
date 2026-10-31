@@ -19,7 +19,6 @@ Tipos de encontro (campo "tipo" da saída):
 
 ## Dados
 - 7 datasets .txt (2 com gabarito JSON para validar, 5 oficiais) em `datasets/inputs/`, gabaritos em `datasets/outputs/`
-- **PENDENTE: `dataset6.txt` não está na pasta** (verificar download)
 - CSV com ";" e cabeçalho: `idMonitorado;faccaoMonitorado;timestamp;latitude;longitude;medidaProtetiva;idsRestricaoMedida`
   - facção só existe para usuários de tornozeleira (pode ser vazio)
   - `idsRestricaoMedida`: IDs dos agressores da vítima, formato "1,2,3" (entre aspas no arquivo)
@@ -106,7 +105,6 @@ return 2 * 6371000 * Math.asin(Math.sqrt(h));
 - Modo benchmark: roda N vezes e mostra média/mín/máx (o JIT esquenta na 1ª execução)
 
 ## Pontos em aberto
-- Obter o `dataset6.txt`
 - Escolher a estratégia de detecção/paralelismo via benchmark
 
 ## Histórico de mudanças e justificativas
