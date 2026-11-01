@@ -2,7 +2,7 @@ node_modules/
 dist/
 
 datasets/inputs/*.txt
-# datasets/reference/*.json
+datasets/reference/*.json
 outputs/*.json
 
 *.log

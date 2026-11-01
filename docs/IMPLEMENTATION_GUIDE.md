@@ -20,11 +20,11 @@
 - [x] Gerar `datasets/reference/referencia{3..7}.json`
 
 ## Fase 4 — Versão principal (simples e correta)
-- [ ] `src/parse.ts` — parse em bytes sobre `Buffer` (ints ×1e5, timestamp inteiro, streaming por timestamp)
-- [ ] `src/detect.ts` — força bruta por timestamp + pré-filtro exato de latitude
-- [ ] `src/index.ts` — CLI (`<dataset> [--expected] [--bench N] [--out]`), estatísticas e tempos no console
-- [ ] Validar nos 7 datasets (gabaritos + referências)
-- [ ] Registrar tempos base (baseline)
+- [x] `src/parse.ts` — parse em bytes sobre `Buffer` (ints ×1e5, timestamp inteiro, streaming por timestamp)
+- [x] `src/detect.ts` — força bruta por timestamp + pré-filtro exato de latitude
+- [x] `src/index.ts` — CLI (`<dataset> [--expected] [--bench N] [--out]`), estatísticas e tempos no console
+- [x] Validar nos 7 datasets (gabaritos + referências)
+- [x] Registrar tempos base (baseline)
 
 ## Fase 5 — Otimizações (uma por vez: implementar → validar → medir → manter ou descartar)
 - [ ] Micro-otimizações do parse (menos branches, typed arrays pré-alocados)
