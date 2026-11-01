@@ -9,15 +9,15 @@
 - [x] Dev deps: `typescript`, `tsx`, `@types/node` (zero deps em runtime)
 
 ## Fase 2 — Base
-- [ ] `src/types.ts` — `Encontro`, `Posicao`, `TipoEncontro`
-- [ ] `src/haversine.ts` — variante `asin` do gabarito
-- [ ] `src/output.ts` — serialização JSON (ids crescentes, ordenado por timestamp)
-- [ ] `src/validate.ts` — comparador por conjunto (`timestamp + par`), tipo e distância; relatório de bateram/faltaram/sobraram
+- [x] `src/types.ts` — `Encontro`, `Posicao`, `TipoEncontro`
+- [x] `src/haversine.ts` — variante `asin` do gabarito
+- [x] `src/output.ts` — serialização JSON (ids crescentes, ordenado por timestamp)
+- [x] `src/validate.ts` — comparador por conjunto (`timestamp + par`), tipo e distância; relatório de bateram/faltaram/sobraram
 
 ## Fase 3 — Referência (força bruta)
-- [ ] `scripts/reference.ts` — parse simples + todos os pares por timestamp + classificação por prioridade
-- [ ] Validar contra `respostas1.json` e `respostas2.json` (100%)
-- [ ] Gerar `datasets/reference/referencia{3..7}.json`
+- [x] `scripts/reference.ts` — parse simples + todos os pares por timestamp + classificação por prioridade
+- [x] Validar contra `respostas1.json` e `respostas2.json` (100%)
+- [x] Gerar `datasets/reference/referencia{3..7}.json`
 
 ## Fase 4 — Versão principal (simples e correta)
 - [ ] `src/parse.ts` — parse em bytes sobre `Buffer` (ints ×1e5, timestamp inteiro, streaming por timestamp)
