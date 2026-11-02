@@ -53,6 +53,7 @@ export interface FrameTimestamp {
   ids: Int32Array;
   latsInt: Int32Array;
   lonsInt: Int32Array;
+  chavesSort: Int32Array;
 }
 
 export interface TemposExecucao {

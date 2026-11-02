@@ -25,6 +25,8 @@ import type {
 export const LIMIAR_PARALELO_BYTES = 4 * 1024 * 1024; // 4 MB
 const GAPS_CIURA = [57, 23, 10, 4, 1] as const;
 
+let sabCompartilhadoGlobal: SharedArrayBuffer | null = null;
+
 export function classificarPar(
   idA: number,
   idB: number,
@@ -74,6 +76,102 @@ export function detectarNoTimestamp(
   const lats = frame.latsInt;
   const lons = frame.lonsInt;
   
+  // Fast-path empacotado 32-bits (N <= 128)
+  if (n <= 128) {
+    const chaves = frame.chavesSort;
+  
+    for (let i = 0; i < n; i++) {
+      chaves[i] = (lats[i]! << 7) | i;
+    }
+  
+    for (let g = 0; g < 5; g++) {
+      const gap = GAPS_CIURA[g]!;
+      if (gap >= n) continue;
+      
+      for (let i = gap; i < n; i++) {
+        const tempChave = chaves[i]!;
+        let j = i;
+      
+        while (j >= gap && chaves[j - gap]! > tempChave) {
+          chaves[j] = chaves[j - gap]!;
+          j -= gap;
+        }
+      
+        chaves[j] = tempChave;
+      }
+
+    }
+  
+    let tsString: string | undefined;
+    const limiteSuperior = n - 1;
+  
+    for (let i = 0; i < limiteSuperior; i++) {
+      const chaveA = chaves[i]!;
+      const latIntA = chaveA >> 7;
+      const chaveLimite = (latIntA + DLAT_MAX_INT_1E5) << 7;
+      for (let j = i + 1; j < n; j++) {
+        const chaveB = chaves[j]!;
+        
+        if (chaveB >= chaveLimite) {
+          break;
+        }
+        
+        const idxA = chaveA & 127;
+        const idxB = chaveB & 127;
+        const idA = ids[idxA]!;
+        const idB = ids[idxB]!;
+        
+        if (idA === idB) continue;
+        
+        const tipo = classificarPar(idA, idB, meta);
+        
+        if (tipo === null) continue;
+
+        const latA = latIntA / 1e5;
+        const lonA = lons[idxA]! / 1e5;
+        const latB = (chaveB >> 7) / 1e5;
+        const lonB = lons[idxB]! / 1e5;
+        const distanciaMetros =
+          idA < idB
+            ? calcularDistanciaHaversine(latA, lonA, latB, lonB)
+            : calcularDistanciaHaversine(latB, lonB, latA, lonA);
+        
+        if (distanciaMetros < DISTANCIA_LIMITE_METROS) {
+          if (tsString === undefined) {
+            tsString = extrairTimestampString(frame);
+          }
+          contagemPorTipo[tipo]++;
+          if (idA < idB) {
+            acumulador.push({
+              tipo,
+              monitoradosEncontro: [idA, idB],
+              timestamp: tsString,
+              posicoes: {
+                [String(idA)]: { lat: latA, lon: lonA },
+                [String(idB)]: { lat: latB, lon: lonB },
+              },
+              distanciaMetros,
+            });
+          } else {
+            acumulador.push({
+              tipo,
+              monitoradosEncontro: [idB, idA],
+              timestamp: tsString,
+              posicoes: {
+                [String(idB)]: { lat: latB, lon: lonB },
+                [String(idA)]: { lat: latA, lon: lonA },
+              },
+              distanciaMetros,
+            });
+          }
+        }
+      }
+    }
+  
+    return;
+  }
+  
+  // Fallback genérico para N > 128 (ordenação paralela de 3 arrays)
   for (let g = 0; g < 5; g++) {
     const gap = GAPS_CIURA[g]!;
   
@@ -186,9 +284,14 @@ export function lerArquivoCompartilhado(caminhoDataset: string): {
 
   try {
     const tamanho = fs.fstatSync(fd).size;
-    const sab = new SharedArrayBuffer(tamanho);
-    const buffer = Buffer.from(sab);
-
+    if (tamanho >= LIMIAR_PARALELO_BYTES && poolWorkers === null) {
+      const numCpus = os.availableParallelism?.() ?? os.cpus().length ?? 4;
+      obterPoolWorkers(numCpus);
+    }
+    if (sabCompartilhadoGlobal === null || sabCompartilhadoGlobal.byteLength < tamanho) {
+      sabCompartilhadoGlobal = new SharedArrayBuffer(tamanho);
+    }
+    const buffer = Buffer.from(sabCompartilhadoGlobal, 0, tamanho);
     let lidosTotal = 0;
 
     while (lidosTotal < tamanho) {
@@ -318,10 +421,11 @@ export async function detectarEncontrosBuffer(
   }
 
   const pool = obterPoolWorkers(fatias.length);
+  const offsetBase = buffer.byteOffset;
   const tarefas: TarefaWorker[] = fatias.map(([inicioByte, fimByte]) => ({
     sab,
-    inicioByte,
-    fimByte,
+    inicioByte: offsetBase + inicioByte,
+    fimByte: offsetBase + fimByte,
   }));
 
   const tInicio = performance.now();

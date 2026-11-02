@@ -60,6 +60,7 @@ export function criarFrameTimestamp(capacidadeInicial = 256): FrameTimestamp {
     ids: new Int32Array(capacidadeInicial),
     latsInt: new Int32Array(capacidadeInicial),
     lonsInt: new Int32Array(capacidadeInicial),
+    chavesSort: new Int32Array(capacidadeInicial),
   };
 }
 
@@ -81,6 +82,11 @@ function garantirCapacidadeFrame(frame: FrameTimestamp, tamanhoNecessario: numbe
   frame.ids = novosIds;
   frame.latsInt = novasLats;
   frame.lonsInt = novasLons;
+  
+  const novasChaves = new Int32Array(novaCap);
+  novasChaves.set(frame.chavesSort);
+  frame.chavesSort = novasChaves;
+
 }
 
 
@@ -113,6 +119,13 @@ export function percorrerBufferPorTimestamp(
     const nl = buffer.indexOf(10, pos);
     pos = nl === -1 ? len : nl + 1;
   }
+
+  const dv = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  let tsRef0 = 0;
+  let tsRef1 = 0;
+  let tsRef2 = 0;
+  let tsRef3 = 0;
+  let tsRef4 = 0;
 
   let metaCap = meta.capacidade;
   let metaConhecido = meta.conhecido;
@@ -180,20 +193,11 @@ export function percorrerBufferPorTimestamp(
 
     if (frameQtd > 0) {
       const mesmoTs =
-        buffer[tsOffset + 18] === buffer[tsRefOffset + 18] &&
-        buffer[tsOffset + 17] === buffer[tsRefOffset + 17] &&
-        buffer[tsOffset + 15] === buffer[tsRefOffset + 15] &&
-        buffer[tsOffset + 14] === buffer[tsRefOffset + 14] &&
-        buffer[tsOffset + 12] === buffer[tsRefOffset + 12] &&
-        buffer[tsOffset + 11] === buffer[tsRefOffset + 11] &&
-        buffer[tsOffset + 9] === buffer[tsRefOffset + 9] &&
-        buffer[tsOffset + 8] === buffer[tsRefOffset + 8] &&
-        buffer[tsOffset + 6] === buffer[tsRefOffset + 6] &&
-        buffer[tsOffset + 5] === buffer[tsRefOffset + 5] &&
-        buffer[tsOffset + 3] === buffer[tsRefOffset + 3] &&
-        buffer[tsOffset + 2] === buffer[tsRefOffset + 2] &&
-        buffer[tsOffset + 1] === buffer[tsRefOffset + 1] &&
-        buffer[tsOffset] === buffer[tsRefOffset];
+        dv.getInt32(tsOffset + 15, true) === tsRef0 &&
+        dv.getInt32(tsOffset + 11, true) === tsRef1 &&
+        dv.getInt32(tsOffset + 7, true) === tsRef2 &&
+        dv.getInt32(tsOffset + 3, true) === tsRef3 &&
+        dv.getInt32(tsOffset, true) === tsRef4;
 
       if (!mesmoTs) {
         frame.quantidade = frameQtd;
@@ -212,6 +216,11 @@ export function percorrerBufferPorTimestamp(
 
     if (frameQtd === 0) {
       tsRefOffset = tsOffset;
+      tsRef0 = dv.getInt32(tsOffset + 15, true);
+      tsRef1 = dv.getInt32(tsOffset + 11, true);
+      tsRef2 = dv.getInt32(tsOffset + 7, true);
+      tsRef3 = dv.getInt32(tsOffset + 3, true);
+      tsRef4 = dv.getInt32(tsOffset, true);
       frame.tsByteOffset = tsOffset;
       timestampsDistintos++;
     }
