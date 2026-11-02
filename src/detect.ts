@@ -23,7 +23,7 @@ import type {
 
 
 export const LIMIAR_PARALELO_BYTES = 4 * 1024 * 1024; // 4 MB
-
+const GAPS_CIURA = [57, 23, 10, 4, 1] as const;
 
 export function classificarPar(
   idA: number,
@@ -67,39 +67,79 @@ export function detectarNoTimestamp(
   contagemPorTipo: Record<TipoEncontro, number>
 ): void {
   const n = frame.quantidade;
+  
+  if (n < 2) return;
+  
   const ids = frame.ids;
   const lats = frame.latsInt;
   const lons = frame.lonsInt;
-  let tsString: string | undefined;
-
-  for (let i = 0; i < n; i++) {
-    const idA = ids[i]!;
-    const latIntA = lats[i]!;
-    const lonIntA = lons[i]!;
-
-    for (let j = i + 1; j < n; j++) {
-      const diffLat = latIntA - lats[j]!;
-      if (diffLat >= DLAT_MAX_INT_1E5 || diffLat <= -DLAT_MAX_INT_1E5) {
-        continue;
+  
+  for (let g = 0; g < 5; g++) {
+    const gap = GAPS_CIURA[g]!;
+  
+    if (gap >= n) continue;
+  
+    for (let i = gap; i < n; i++) {
+      const tempLat = lats[i]!;
+      const tempId = ids[i]!;
+      const tempLon = lons[i]!;
+      let j = i;
+  
+      while (j >= gap && lats[j - gap]! > tempLat) {
+        lats[j] = lats[j - gap]!;
+        ids[j] = ids[j - gap]!;
+        lons[j] = lons[j - gap]!;
+        j -= gap;
       }
-
+  
+      lats[j] = tempLat;
+      ids[j] = tempId;
+      lons[j] = tempLon;
+    }
+  
+  }
+  
+  let tsString: string | undefined;
+  const limiteSuperior = n - 1;
+  
+  for (let i = 0; i < limiteSuperior; i++) {
+    
+    const latIntA = lats[i]!;
+    const latLimite = latIntA + DLAT_MAX_INT_1E5;
+    const idA = ids[i]!;
+    const lonIntA = lons[i]!;
+    
+    for (let j = i + 1; j < n; j++) {
+      const latIntB = lats[j]!;
+      
+      if (latIntB >= latLimite) {
+        break;
+      }
+      
       const idB = ids[j]!;
+      
       if (idA === idB) continue;
-
+      
       const tipo = classificarPar(idA, idB, meta);
+      
       if (tipo === null) continue;
-
+      
       const latA = latIntA / 1e5;
       const lonA = lonIntA / 1e5;
-      const latB = lats[j]! / 1e5;
+      const latB = latIntB / 1e5;
       const lonB = lons[j]! / 1e5;
+      
+      const distanciaMetros =
+        idA < idB
+          ? calcularDistanciaHaversine(latA, lonA, latB, lonB)
+          : calcularDistanciaHaversine(latB, lonB, latA, lonA);
 
-      const distanciaMetros = calcularDistanciaHaversine(latA, lonA, latB, lonB);
       if (distanciaMetros < DISTANCIA_LIMITE_METROS) {
-        
+
         if (tsString === undefined) {
           tsString = extrairTimestampString(frame);
         }
+
         contagemPorTipo[tipo]++;
 
         if (idA < idB) {
@@ -113,7 +153,9 @@ export function detectarNoTimestamp(
             },
             distanciaMetros,
           });
+
         } else {
+
           acumulador.push({
             tipo,
             monitoradosEncontro: [idB, idA],
@@ -124,6 +166,7 @@ export function detectarNoTimestamp(
             },
             distanciaMetros,
           });
+
         }
 
       }

@@ -88,7 +88,6 @@ export function extrairTimestampString(frame: FrameTimestamp): string {
   return frame.tsBuffer.toString('utf8', frame.tsByteOffset, frame.tsByteOffset + 19);
 }
 
-
 export function percorrerBufferPorTimestamp(
   buffer: Buffer,
   meta: TabelaMetadados,
@@ -103,99 +102,117 @@ export function percorrerBufferPorTimestamp(
   let pos = 0;
   let linhasLidas = 0;
   let timestampsDistintos = 0;
-  let tempoDeteccaoMs = 0;
+  let tempoDeteccaoAmostrado = 0;
+  let amostrasDeteccao = 0;
 
   if (len >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
     pos = 3;
   }
 
   if (pos < len && buffer[pos] === 105) {
-    while (pos < len && buffer[pos] !== 10) pos++;
-    if (pos < len && buffer[pos] === 10) pos++;
+    const nl = buffer.indexOf(10, pos);
+    pos = nl === -1 ? len : nl + 1;
   }
+
+  let metaCap = meta.capacidade;
+  let metaConhecido = meta.conhecido;
+  let frameIds = frame.ids;
+  let frameLats = frame.latsInt;
+  let frameLons = frame.lonsInt;
+  let frameCap = frameIds.length;
+  let frameQtd = 0;
+  let tsRefOffset = 0;
+  frame.quantidade = 0;
+  frame.tsBuffer = buffer;
 
   while (pos < len) {
     while (pos < len && (buffer[pos] === 10 || buffer[pos] === 13)) pos++;
     if (pos >= len) break;
 
-
     let id = 0;
     while (pos < len) {
       const b = buffer[pos]!;
-    
       if (b === 59) {
         pos++;
         break;
       }
-    
       id = id * 10 + (b - 48);
       pos++;
     }
 
-    if (id >= meta.capacidade) {
+    if (id >= metaCap) {
       garantirCapacidadeMetadados(meta, id);
+      metaCap = meta.capacidade;
+      metaConhecido = meta.conhecido;
     }
 
-    const ehNovoId = meta.conhecido[id] === 0;
-    if (ehNovoId) {
-      meta.conhecido[id] = 1;
-      meta.monitoradosDistintos++;
-    }
-
+    const ehNovoId = metaConhecido[id] === 0;
     if (!ehNovoId) {
       while (pos < len && buffer[pos] !== 59) pos++;
       if (pos < len) pos++;
     } else {
-    
+      metaConhecido[id] = 1;
+      meta.monitoradosDistintos++;
+
       const inicioFac = pos;
-    
       while (pos < len && buffer[pos] !== 59) pos++;
+
       if (pos > inicioFac) {
-      
         const facStr = buffer.toString('utf8', inicioFac, pos);
         let facId = meta.mapaFaccoes.get(facStr);
+
         if (facId === undefined) {
           facId = meta.mapaFaccoes.size + 1;
           meta.mapaFaccoes.set(facStr, facId);
         }
-      
+
         meta.faccaoPorId[id] = facId;
-      
       }
+
       if (pos < len) pos++;
     }
 
     if (pos < len && buffer[pos] === 34) pos++;
     const tsOffset = pos;
-    const ano =
-      (buffer[pos]! - 48) * 1000 +
-      (buffer[pos + 1]! - 48) * 100 +
-      (buffer[pos + 2]! - 48) * 10 +
-      (buffer[pos + 3]! - 48);
-    const mes = (buffer[pos + 5]! - 48) * 10 + (buffer[pos + 6]! - 48);
-    const dia = (buffer[pos + 8]! - 48) * 10 + (buffer[pos + 9]! - 48);
-    const hor = (buffer[pos + 11]! - 48) * 10 + (buffer[pos + 12]! - 48);
-    const min = (buffer[pos + 14]! - 48) * 10 + (buffer[pos + 15]! - 48);
-    const seg = (buffer[pos + 17]! - 48) * 10 + (buffer[pos + 18]! - 48);
-    const timestampInt = ((((ano * 100 + mes) * 100 + dia) * 100 + hor) * 100 + min) * 100 + seg;
-
     pos += 19;
     if (pos < len && buffer[pos] === 34) pos++;
     if (pos < len && buffer[pos] === 59) pos++;
 
-    if (frame.timestampInt !== 0 && timestampInt !== frame.timestampInt) {
-      if (frame.quantidade > 0) {
-        const t0 = performance.now();
-        aoFecharTimestamp(frame, meta);
-        tempoDeteccaoMs += performance.now() - t0;
-        frame.quantidade = 0;
+    if (frameQtd > 0) {
+      const mesmoTs =
+        buffer[tsOffset + 18] === buffer[tsRefOffset + 18] &&
+        buffer[tsOffset + 17] === buffer[tsRefOffset + 17] &&
+        buffer[tsOffset + 15] === buffer[tsRefOffset + 15] &&
+        buffer[tsOffset + 14] === buffer[tsRefOffset + 14] &&
+        buffer[tsOffset + 12] === buffer[tsRefOffset + 12] &&
+        buffer[tsOffset + 11] === buffer[tsRefOffset + 11] &&
+        buffer[tsOffset + 9] === buffer[tsRefOffset + 9] &&
+        buffer[tsOffset + 8] === buffer[tsRefOffset + 8] &&
+        buffer[tsOffset + 6] === buffer[tsRefOffset + 6] &&
+        buffer[tsOffset + 5] === buffer[tsRefOffset + 5] &&
+        buffer[tsOffset + 3] === buffer[tsRefOffset + 3] &&
+        buffer[tsOffset + 2] === buffer[tsRefOffset + 2] &&
+        buffer[tsOffset + 1] === buffer[tsRefOffset + 1] &&
+        buffer[tsOffset] === buffer[tsRefOffset];
+
+      if (!mesmoTs) {
+        frame.quantidade = frameQtd;
+        if ((timestampsDistintos & 63) === 1) {
+          const t0 = performance.now();
+          aoFecharTimestamp(frame, meta);
+          tempoDeteccaoAmostrado += performance.now() - t0;
+          amostrasDeteccao++;
+        } else {
+          aoFecharTimestamp(frame, meta);
+        }
+        frameQtd = 0;
       }
+
     }
 
-    if (frame.quantidade === 0) {
-      frame.timestampInt = timestampInt;
+    if (frameQtd === 0) {
+      tsRefOffset = tsOffset;
       frame.tsByteOffset = tsOffset;
-      frame.tsBuffer = buffer;
       timestampsDistintos++;
     }
 
@@ -204,7 +221,7 @@ export function percorrerBufferPorTimestamp(
       negLat = true;
       pos++;
     }
-    
+
     let latInt = 0;
     while (pos < len) {
       const b = buffer[pos]!;
@@ -212,33 +229,50 @@ export function percorrerBufferPorTimestamp(
       latInt = latInt * 10 + (b - 48);
       pos++;
     }
-    
-    let casasLat = 0;
+
     if (pos < len && buffer[pos] === 46) {
-      
-      pos++;
-      while (pos < len) {
-        const b = buffer[pos]!;
-        if (b === 59) break;
-        if (casasLat < 5) {
-          latInt = latInt * 10 + (b - 48);
-          casasLat++;
-        }
+      if (pos + 6 < len && buffer[pos + 6] === 59) {
+        latInt =
+          latInt * 100_000 +
+          (buffer[pos + 1]! - 48) * 10_000 +
+          (buffer[pos + 2]! - 48) * 1_000 +
+          (buffer[pos + 3]! - 48) * 100 +
+          (buffer[pos + 4]! - 48) * 10 +
+          (buffer[pos + 5]! - 48);
+        pos += 7;
+      } else {
+
         pos++;
+        let casasLat = 0;
+
+        while (pos < len) {
+          const b = buffer[pos]!;
+          if (b === 59) break;
+          if (casasLat < 5) {
+            latInt = latInt * 10 + (b - 48);
+            casasLat++;
+          }
+          pos++;
+        }
+
+        latInt = latInt * (MULT_CASAS[casasLat] ?? 1);
+
+        if (pos < len && buffer[pos] === 59) pos++;
       }
 
+    } else {
+      latInt = latInt * 100_000;
+      if (pos < len && buffer[pos] === 59) pos++;
     }
 
-    latInt = latInt * (MULT_CASAS[casasLat] ?? 1);
     if (negLat) latInt = -latInt;
-    if (pos < len && buffer[pos] === 59) pos++;
 
     let negLon = false;
     if (buffer[pos] === 45) {
       negLon = true;
       pos++;
     }
-    
+
     let lonInt = 0;
     while (pos < len) {
       const b = buffer[pos]!;
@@ -246,40 +280,57 @@ export function percorrerBufferPorTimestamp(
       lonInt = lonInt * 10 + (b - 48);
       pos++;
     }
-    
-    let casasLon = 0;
+
     if (pos < len && buffer[pos] === 46) {
-      
-      pos++;
-      
-      while (pos < len) {
-        const b = buffer[pos]!;
-        if (b === 59) break;
-        if (casasLon < 5) {
-          lonInt = lonInt * 10 + (b - 48);
-          casasLon++;
-        }
+      if (pos + 6 < len && buffer[pos + 6] === 59) {
+        lonInt =
+          lonInt * 100_000 +
+          (buffer[pos + 1]! - 48) * 10_000 +
+          (buffer[pos + 2]! - 48) * 1_000 +
+          (buffer[pos + 3]! - 48) * 100 +
+          (buffer[pos + 4]! - 48) * 10 +
+          (buffer[pos + 5]! - 48);
+        pos += 7;
+
+      } else {
         pos++;
+        let casasLon = 0;
+
+        while (pos < len) {
+          const b = buffer[pos]!;
+          if (b === 59) break;
+          if (casasLon < 5) {
+            lonInt = lonInt * 10 + (b - 48);
+            casasLon++;
+          }
+          pos++;
+        }
+
+        lonInt = lonInt * (MULT_CASAS[casasLon] ?? 1);
+
+        if (pos < len && buffer[pos] === 59) pos++;
       }
 
+    } else {
+      lonInt = lonInt * 100_000;
+      if (pos < len && buffer[pos] === 59) pos++;
     }
 
-    lonInt = lonInt * (MULT_CASAS[casasLon] ?? 1);
     if (negLon) lonInt = -lonInt;
-    if (pos < len && buffer[pos] === 59) pos++;
 
     if (!ehNovoId) {
       while (pos < len && buffer[pos] !== 10) pos++;
       if (pos < len) pos++;
     } else {
-    
+
       while (pos < len && (buffer[pos] === 32 || buffer[pos] === 9)) pos++;
-    
+
       const isTrue = pos < len && (buffer[pos] === 116 || buffer[pos] === 84);
+
       if (isTrue) {
         meta.ehVitimaPorId[id] = 1;
       }
-      
+
       while (pos < len && buffer[pos] !== 59 && buffer[pos] !== 10) pos++;
 
       if (pos < len && buffer[pos] === 59) {
@@ -292,14 +343,12 @@ export function percorrerBufferPorTimestamp(
             const b = buffer[pos]!;
             if (b >= 48 && b <= 57) {
               let agId = 0;
-      
               while (pos < len) {
                 const dig = buffer[pos]!;
                 if (dig < 48 || dig > 57) break;
                 agId = agId * 10 + (dig - 48);
                 pos++;
               }
-      
               if (primeiroAgr === -1) {
                 primeiroAgr = agId;
               } else {
@@ -309,11 +358,9 @@ export function percorrerBufferPorTimestamp(
                 }
                 extras.add(agId);
               }
-      
             } else {
               pos++;
             }
-      
           }
 
           if (extras !== undefined) {
@@ -322,31 +369,40 @@ export function percorrerBufferPorTimestamp(
           } else {
             meta.agressorUnicoPorId[id] = primeiroAgr;
           }
-        
         } else {
           while (pos < len && buffer[pos] !== 10) pos++;
         }
-      
       }
 
       if (pos < len && buffer[pos] === 10) pos++;
-    
     }
 
-    const idx = frame.quantidade;
-    garantirCapacidadeFrame(frame, idx + 1);
-    frame.ids[idx] = id;
-    frame.latsInt[idx] = latInt;
-    frame.lonsInt[idx] = lonInt;
-    frame.quantidade++;
+    if (frameQtd >= frameCap) {
+      garantirCapacidadeFrame(frame, frameQtd + 1);
+      frameIds = frame.ids;
+      frameLats = frame.latsInt;
+      frameLons = frame.lonsInt;
+      frameCap = frameIds.length;
+    }
+    frameIds[frameQtd] = id;
+    frameLats[frameQtd] = latInt;
+    frameLons[frameQtd] = lonInt;
+    frameQtd++;
     linhasLidas++;
   }
 
-  if (frame.quantidade > 0) {
+  if (frameQtd > 0) {
+    frame.quantidade = frameQtd;
     const t0 = performance.now();
     aoFecharTimestamp(frame, meta);
-    tempoDeteccaoMs += performance.now() - t0;
+    tempoDeteccaoAmostrado += performance.now() - t0;
+    amostrasDeteccao++;
   }
+
+  const tempoDeteccaoMs =
+    amostrasDeteccao > 0
+      ? (tempoDeteccaoAmostrado / amostrasDeteccao) * timestampsDistintos
+      : 0;
 
   return { linhasLidas, timestampsDistintos, tempoDeteccaoMs };
 }
