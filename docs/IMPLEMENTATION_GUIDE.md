@@ -27,14 +27,21 @@
 - [x] Registrar tempos base (baseline)
 
 ## Fase 5 — Otimizações (uma por vez: implementar → validar → medir → manter ou descartar)
-- [ ] Micro-otimizações do parse (menos branches, typed arrays pré-alocados)
-- [ ] Pré-cálculo por posição (radianos, `cos(lat)`) mantendo distância bit a bit
-- [ ] Sweep por latitude vs força bruta filtrada
-- [ ] Poda por continuidade temporal
-- [ ] `worker_threads` (divisão do buffer em fronteiras de timestamp)
-- [ ] Atalho "matriz regular" com fallback genérico
-- [ ] Bundle único (esbuild) e medição do tempo de boot
-- [ ] Atualizar tabela de benchmarks a cada etapa
+
+### Otimizações a testar e implementar
+- [ ] **`worker_threads` (divisão do buffer em fronteiras de timestamp)**: Principal vetor de aceleração. Como cada timestamp é independente, fatiar o buffer em $K$ blocos alinhados por quebra de linha com novo timestamp permite processamento multi-core paralelo do dataset 7 sem dependência de estado.
+- [ ] **Micro-otimizações do parse**: Refinar a varredura byte a byte em `src/parse.ts` (ex.: testar `buffer.indexOf(10, pos)` com SIMD nativo do C++/V8 para pular colunas de IDs já conhecidos, simplificar leitura inteira de coordenadas), reduzindo tempo de CPU mantendo compatibilidade genérica com CSV.
+- [ ] **Teste: Sweep por latitude vs. força bruta filtrada**: Testar se ordenar as posições por latitude para interrupção precoce (*break*) compensa o custo de ordenação ($O(N \log N)$ para $N \le 120$) em relação às subtrações inteiras já residentes em cache L1.
+- [ ] **Teste: Pré-cálculo por posição (radianos e `cos(lat)`)**: Avaliar se pré-calcular termos trigonométricos por monitorado compensa. Medir se a computação adiantada não gera overhead desnecessário, já que o pré-filtro descarta $>99\%$ dos pares antes do Haversine (exigência estrita: igualdade bit a bit).
+- [ ] **Metodologia de benchmark e validação contínua**: Executar `--bench N` (com aquecimento JIT) e validação contra os oráculos (`scripts/reference.ts` e gabaritos) a cada mudança; manter apenas o que apresentar ganho mensurável.
+
+### Otimizações descartadas (decisões arquiteturais e justificativas)
+- [x] ~~**Poda por continuidade temporal**~~:
+  - *Justificativa*: O pré-filtro atual de latitude já descarta pares em 1 ciclo de CPU (subtração inteira). Rastrear e consultar tabelas de "cooldown" por par na memória adiciona overhead de lookup e cria dependência de estado entre timestamps vizinhos, complicando ou inviabilizando a divisão limpa em `worker_threads`.
+- [x] ~~**Atalho "matriz regular"**~~:
+  - *Justificativa*: Risco de *overfitting* estrutural aos datasets atuais. Manter o parser genérico em streaming garante que a solução funcione mesmo com leituras faltantes (perda de sinal de GPS), ordem variada de IDs ou datasets ligeiramente diferentes, defendendo a robustez e generalidade do código.
+- [x] ~~**Bundle único com esbuild**~~:
+  - *Justificativa*: *Overengineering* sem ganho prático. O projeto tem zero dependências em runtime e apenas 6 módulos compilados que o Node.js carrega em ~2 a 4 ms. O ganho no tempo de boot é estatisticamente desprezível frente ao processamento do dataset 7.
 
 ## Fase 6 — Robustez
 - [ ] Tratar CRLF, BOM, linhas vazias, facção vazia, vítima sem restrição

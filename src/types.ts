@@ -81,3 +81,19 @@ export interface OpcoesCli {
   benchIteracoes: number;
   executarTodos: boolean;
 }
+
+export interface TarefaWorker {
+  sab: SharedArrayBuffer;
+  inicioByte: number;
+  fimByte: number;
+}
+
+export interface ResultadoWorker {
+  encontros: Encontro[];
+  contagemPorTipo: Record<TipoEncontro, number>;
+  linhasLidas: number;
+  timestampsDistintos: number;
+  conhecido: Uint8Array;
+  parseMs: number;
+  deteccaoMs: number;
+}

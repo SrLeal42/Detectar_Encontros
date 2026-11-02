@@ -215,6 +215,7 @@ export function percorrerBufferPorTimestamp(
     
     let casasLat = 0;
     if (pos < len && buffer[pos] === 46) {
+      
       pos++;
       while (pos < len) {
         const b = buffer[pos]!;
@@ -225,7 +226,9 @@ export function percorrerBufferPorTimestamp(
         }
         pos++;
       }
+
     }
+
     latInt = latInt * (MULT_CASAS[casasLat] ?? 1);
     if (negLat) latInt = -latInt;
     if (pos < len && buffer[pos] === 59) pos++;
@@ -246,7 +249,9 @@ export function percorrerBufferPorTimestamp(
     
     let casasLon = 0;
     if (pos < len && buffer[pos] === 46) {
+      
       pos++;
+      
       while (pos < len) {
         const b = buffer[pos]!;
         if (b === 59) break;
@@ -256,7 +261,9 @@ export function percorrerBufferPorTimestamp(
         }
         pos++;
       }
+
     }
+
     lonInt = lonInt * (MULT_CASAS[casasLon] ?? 1);
     if (negLon) lonInt = -lonInt;
     if (pos < len && buffer[pos] === 59) pos++;
@@ -342,4 +349,103 @@ export function percorrerBufferPorTimestamp(
   }
 
   return { linhasLidas, timestampsDistintos, tempoDeteccaoMs };
+}
+
+
+function obterOffsetTimestampNaLinha(buffer: Buffer, inicioLinha: number, fim: number): number {
+  let pos = inicioLinha;
+
+  while (pos < fim && (buffer[pos] === 10 || buffer[pos] === 13)) pos++;
+
+  if (pos >= fim) return -1;
+
+  // 1º ';' (após idMonitorado)
+  while (pos < fim && buffer[pos] !== 59 && buffer[pos] !== 10) pos++;
+
+  if (pos >= fim || buffer[pos] === 10) return -1;
+
+  pos++;
+  // 2º ';' (após faccaoMonitorado)
+  while (pos < fim && buffer[pos] !== 59 && buffer[pos] !== 10) pos++;
+
+  if (pos >= fim || buffer[pos] === 10) return -1;
+
+  pos++;
+
+  if (pos < fim && buffer[pos] === 34) pos++;
+
+  return pos + 19 <= fim ? pos : -1;
+}
+
+export function calcularFatiasPorTimestamp(
+  buffer: Buffer,
+  numFatias: number
+): Array<[number, number]> {
+ 
+  const len = buffer.length;
+  let pos = 0;
+ 
+  if (len >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+    pos = 3;
+  }
+ 
+  if (pos < len && buffer[pos] === 105) {
+    const nlCabecalho = buffer.indexOf(10, pos);
+    pos = nlCabecalho === -1 ? len : nlCabecalho + 1;
+  }
+ 
+  const inicioDados = pos;
+  if (numFatias <= 1 || inicioDados >= len) {
+    return [[inicioDados, len]];
+  }
+ 
+  const fatias: Array<[number, number]> = [];
+  let inicioAtual = inicioDados;
+ 
+  for (let k = 1; k < numFatias; k++) {
+    const alvo = inicioDados + Math.floor(((len - inicioDados) * k) / numFatias);
+ 
+    if (alvo <= inicioAtual) continue;
+ 
+    const nlAlvo = buffer.indexOf(10, alvo);
+ 
+    if (nlAlvo === -1 || nlAlvo + 1 >= len) break;
+ 
+    let inicioLinha = nlAlvo + 1;
+    const tsRef = obterOffsetTimestampNaLinha(buffer, inicioLinha, len);
+ 
+    if (tsRef === -1) break;
+ 
+    while (inicioLinha < len) {
+ 
+      const nlProx = buffer.indexOf(10, inicioLinha);
+      if (nlProx === -1 || nlProx + 1 >= len) {
+        inicioLinha = len;
+        break;
+      }
+      inicioLinha = nlProx + 1;
+ 
+      const tsProx = obterOffsetTimestampNaLinha(buffer, inicioLinha, len);
+      if (tsProx === -1) {
+        inicioLinha = len;
+        break;
+      }
+ 
+      if (buffer.compare(buffer, tsProx, tsProx + 19, tsRef, tsRef + 19) !== 0) {
+        break;
+      }
+    }
+ 
+    if (inicioLinha > inicioAtual && inicioLinha < len) {
+      fatias.push([inicioAtual, inicioLinha]);
+      inicioAtual = inicioLinha;
+    }
+ 
+  }
+ 
+  if (inicioAtual < len) {
+    fatias.push([inicioAtual, len]);
+  }
+ 
+  return fatias;
 }

@@ -1,7 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { detectarEncontrosArquivo, detectarEncontrosBuffer } from './detect.js';
+import {
+  detectarEncontrosArquivo,
+  detectarEncontrosBuffer,
+  encerrarPoolWorkers,
+  lerArquivoCompartilhado,
+} from './detect.js';
 import { salvarEncontrosJson } from './output.js';
 import type { OpcoesCli, ResultadoDeteccao } from './types.js';
 import { formatarRelatorioValidacao, validarContraArquivo } from './validate.js';
@@ -84,7 +89,7 @@ export function resolverCaminhoSaidaPadrao(caminhoDataset: string): string {
   return path.join('outputs', `${base}.json`);
 }
 
-export function executarPipelineDataset(caminhoDataset: string, opcoes: OpcoesCli): void {
+export async function executarPipelineDataset(caminhoDataset: string, opcoes: OpcoesCli): Promise<void> {
   const nome = path.basename(caminhoDataset);
   console.log(`\n========================================`);
   console.log(`Dataset: ${nome}`);
@@ -113,20 +118,19 @@ export function executarPipelineDataset(caminhoDataset: string, opcoes: OpcoesCl
     const parses: number[] = [];
     const deteccoes: number[] = [];
     const totais: number[] = [];
-
-    const buffer = fs.readFileSync(caminhoDataset);
-    resultadoFinal = detectarEncontrosBuffer(buffer, 0);
-
+    const inicial = lerArquivoCompartilhado(caminhoDataset);
+    
+    resultadoFinal = await detectarEncontrosBuffer(inicial.buffer, 0);
+    
     for (let i = 0; i < opcoes.benchIteracoes; i++) {
-      const t0 = performance.now();
-      const buf = fs.readFileSync(caminhoDataset);
-      const t1 = performance.now();
-      const res = detectarEncontrosBuffer(buf, t1 - t0);
-
+      const { buffer, leituraMs } = lerArquivoCompartilhado(caminhoDataset);
+      const res = await detectarEncontrosBuffer(buffer, leituraMs);
+    
       leituras.push(res.tempos.leituraMs);
       parses.push(res.tempos.parseMs);
       deteccoes.push(res.tempos.deteccaoMs);
       totais.push(res.tempos.totalMs);
+    
       resultadoFinal = res;
     }
 
@@ -155,7 +159,9 @@ export function executarPipelineDataset(caminhoDataset: string, opcoes: OpcoesCl
       `TOTAL:        Média: ${sTot.media.toFixed(2)}ms (${(sTot.media / 1000).toFixed(3)}s) | Mín: ${sTot.min.toFixed(2)}ms | Máx: ${sTot.max.toFixed(2)}ms`
     );
   } else {
-    resultadoFinal = detectarEncontrosArquivo(caminhoDataset);
+    
+    resultadoFinal = await detectarEncontrosArquivo(caminhoDataset);
+
     console.log(`\n--- MÉTRICAS DE PROCESSAMENTO ---`);
     console.log(`Linhas lidas:           ${resultadoFinal.linhasLidas.toLocaleString()}`);
     console.log(`Timestamps distintos:   ${resultadoFinal.timestampsDistintos.toLocaleString()}`);
@@ -197,35 +203,40 @@ export function executarPipelineDataset(caminhoDataset: string, opcoes: OpcoesCl
 
 }
 
-export function principal(): void {
+export async function principal(): Promise<void> {
   const opcoes = parsearArgumentosCli(process.argv.slice(2));
 
-  if (opcoes.executarTodos || (!opcoes.caminhoDataset && process.argv.length <= 2)) {
-    console.log('=== EXECUÇÃO DOS 7 DATASETS (PIPELINE PRINCIPAL) ===');
-    const datasets = [
-      'datasets/inputs/dataset1.txt',
-      'datasets/inputs/dataset2.txt',
-      'datasets/inputs/dataset3.txt',
-      'datasets/inputs/dataset4.txt',
-      'datasets/inputs/dataset5.txt',
-      'datasets/inputs/dataset6.txt',
-      'datasets/inputs/dataset7.txt',
-    ];
+  try {
+    if (opcoes.executarTodos || (!opcoes.caminhoDataset && process.argv.length <= 2)) {
+      console.log('=== EXECUÇÃO DOS 7 DATASETS (PIPELINE PRINCIPAL) ===');
+      const datasets = [
+        'datasets/inputs/dataset1.txt',
+        'datasets/inputs/dataset2.txt',
+        'datasets/inputs/dataset3.txt',
+        'datasets/inputs/dataset4.txt',
+        'datasets/inputs/dataset5.txt',
+        'datasets/inputs/dataset6.txt',
+        'datasets/inputs/dataset7.txt',
+      ];
 
-    for (const d of datasets) {
-      executarPipelineDataset(d, { ...opcoes, executarTodos: true });
+      for (const d of datasets) {
+        await executarPipelineDataset(d, { ...opcoes, executarTodos: true });
+      }
+
+      return;
     }
 
-    return;
-  }
-
-  if (opcoes.caminhoDataset) {
-    executarPipelineDataset(opcoes.caminhoDataset, opcoes);
-  } else {
-    console.log('Uso: node dist/index.js <dataset.txt> [--expected [arq]] [--bench N] [--out [arq]]');
-    console.log('     node dist/index.js --all [--bench N]');
+    if (opcoes.caminhoDataset) {
+      await executarPipelineDataset(opcoes.caminhoDataset, opcoes);
+    } else {
+      console.log('Uso: node dist/index.js <dataset.txt> [--expected [arq]] [--bench N] [--out [arq]]');
+      console.log('     node dist/index.js --all [--bench N]');
+    }
+  
+  } finally {
+    await encerrarPoolWorkers();
   }
 
 }
 
-principal();
+void principal();
