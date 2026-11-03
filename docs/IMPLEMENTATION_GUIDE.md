@@ -54,9 +54,9 @@
 - [x] Revalidar os 7 datasets
 
 ## Fase 7 — Entrega
-- [ ] Gerar os JSONs finais dos 7 datasets (`outputs/`)
-- [ ] `README.md`: lógica, como executar, por que esta abordagem, benchmarks, decisões e evidências, uso de IA
-- [ ] Revisão final do código (você precisa saber defender cada parte)
+- [x] Gerar os JSONs finais dos 7 datasets (`outputs/`)
+- [x] `README.md`: lógica, como executar, por que esta abordagem, benchmarks, decisões e evidências, uso de IA
+- [x] Revisão final do código
 - [ ] Teste do zero: clone limpo → `npm install && npm run build` → executar
 - [ ] Compactar (.zip) ou link do GitHub e enviar antes de 03/11/2026 23:59:59
 
