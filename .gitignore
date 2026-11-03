@@ -3,7 +3,6 @@ dist/
 
 datasets/inputs/*.txt
 datasets/reference/*.json
-outputs/*.json
 
 *.log
 .DS_Store
