@@ -319,4 +319,6 @@ function principal(): void {
 
 }
 
-principal();
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('scripts/reference.ts')) {
+  principal();
+}

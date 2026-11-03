@@ -10,7 +10,8 @@
     "dev": "tsx src/index.ts",
     "ref": "tsx scripts/reference.ts",
     "validate": "node dist/index.js",
-    "bench": "node dist/index.js"
+    "bench": "node dist/index.js",
+    "test": "tsx scripts/test_phase2.ts && tsx scripts/test_robustness.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

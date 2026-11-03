@@ -49,9 +49,9 @@
   - *Justificativa*: *Overengineering* sem ganho prático. O projeto tem zero dependências em runtime e apenas 6 módulos compilados que o Node.js carrega em ~2 a 4 ms. O ganho no tempo de boot é estatisticamente desprezível frente ao processamento do dataset 7.
 
 ## Fase 6 — Robustez
-- [ ] Tratar CRLF, BOM, linhas vazias, facção vazia, vítima sem restrição
-- [ ] Testes unitários mínimos (haversine, classificação, parse de linha)
-- [ ] Revalidar os 7 datasets
+- [x] Tratar CRLF, BOM, linhas vazias, facção vazia, vítima sem restrição
+- [x] Testes unitários mínimos (haversine, classificação, parse de linha)
+- [x] Revalidar os 7 datasets
 
 ## Fase 7 — Entrega
 - [ ] Gerar os JSONs finais dos 7 datasets (`outputs/`)

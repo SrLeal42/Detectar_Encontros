@@ -139,7 +139,12 @@ export function percorrerBufferPorTimestamp(
   frame.tsBuffer = buffer;
 
   while (pos < len) {
-    while (pos < len && (buffer[pos] === 10 || buffer[pos] === 13)) pos++;
+    
+    while (
+      pos < len &&
+      (buffer[pos] === 10 || buffer[pos] === 13 || buffer[pos] === 32 || buffer[pos] === 9)
+    ) { pos++;}
+
     if (pos >= len) break;
 
     let id = 0;
@@ -171,15 +176,19 @@ export function percorrerBufferPorTimestamp(
       while (pos < len && buffer[pos] !== 59) pos++;
 
       if (pos > inicioFac) {
-        const facStr = buffer.toString('utf8', inicioFac, pos);
-        let facId = meta.mapaFaccoes.get(facStr);
-
-        if (facId === undefined) {
-          facId = meta.mapaFaccoes.size + 1;
-          meta.mapaFaccoes.set(facStr, facId);
+        const facStr = buffer.toString('utf8', inicioFac, pos).trim();
+        
+        if (facStr.length > 0) {
+         
+          let facId = meta.mapaFaccoes.get(facStr);
+          if (facId === undefined) {
+            facId = meta.mapaFaccoes.size + 1;
+            meta.mapaFaccoes.set(facStr, facId);
+          }
+         
+          meta.faccaoPorId[id] = facId;
         }
 
-        meta.faccaoPorId[id] = facId;
       }
 
       if (pos < len) pos++;
@@ -187,6 +196,7 @@ export function percorrerBufferPorTimestamp(
 
     if (pos < len && buffer[pos] === 34) pos++;
     const tsOffset = pos;
+    if (tsOffset + 19 > len) break;
     pos += 19;
     if (pos < len && buffer[pos] === 34) pos++;
     if (pos < len && buffer[pos] === 59) pos++;
@@ -240,14 +250,27 @@ export function percorrerBufferPorTimestamp(
     }
 
     if (pos < len && buffer[pos] === 46) {
-      if (pos + 6 < len && buffer[pos + 6] === 59) {
+      const b1 = buffer[pos + 1]!;
+      const b2 = buffer[pos + 2]!;
+      const b3 = buffer[pos + 3]!;
+      const b4 = buffer[pos + 4]!;
+      const b5 = buffer[pos + 5]!;
+      if (
+        pos + 6 < len &&
+        buffer[pos + 6] === 59 &&
+        b1 >= 48 && b1 <= 57 &&
+        b2 >= 48 && b2 <= 57 &&
+        b3 >= 48 && b3 <= 57 &&
+        b4 >= 48 && b4 <= 57 &&
+        b5 >= 48 && b5 <= 57
+      ) {
         latInt =
           latInt * 100_000 +
-          (buffer[pos + 1]! - 48) * 10_000 +
-          (buffer[pos + 2]! - 48) * 1_000 +
-          (buffer[pos + 3]! - 48) * 100 +
-          (buffer[pos + 4]! - 48) * 10 +
-          (buffer[pos + 5]! - 48);
+          (b1 - 48) * 10_000 +
+          (b2 - 48) * 1_000 +
+          (b3 - 48) * 100 +
+          (b4 - 48) * 10 +
+          (b5 - 48);
         pos += 7;
       } else {
 
@@ -291,16 +314,28 @@ export function percorrerBufferPorTimestamp(
     }
 
     if (pos < len && buffer[pos] === 46) {
-      if (pos + 6 < len && buffer[pos + 6] === 59) {
+      const b1 = buffer[pos + 1]!;
+      const b2 = buffer[pos + 2]!;
+      const b3 = buffer[pos + 3]!;
+      const b4 = buffer[pos + 4]!;
+      const b5 = buffer[pos + 5]!;
+      if (
+        pos + 6 < len &&
+        buffer[pos + 6] === 59 &&
+        b1 >= 48 && b1 <= 57 &&
+        b2 >= 48 && b2 <= 57 &&
+        b3 >= 48 && b3 <= 57 &&
+        b4 >= 48 && b4 <= 57 &&
+        b5 >= 48 && b5 <= 57
+      ) {
         lonInt =
           lonInt * 100_000 +
-          (buffer[pos + 1]! - 48) * 10_000 +
-          (buffer[pos + 2]! - 48) * 1_000 +
-          (buffer[pos + 3]! - 48) * 100 +
-          (buffer[pos + 4]! - 48) * 10 +
-          (buffer[pos + 5]! - 48);
+          (b1 - 48) * 10_000 +
+          (b2 - 48) * 1_000 +
+          (b3 - 48) * 100 +
+          (b4 - 48) * 10 +
+          (b5 - 48);
         pos += 7;
-
       } else {
         pos++;
         let casasLon = 0;
@@ -420,7 +455,10 @@ export function percorrerBufferPorTimestamp(
 function obterOffsetTimestampNaLinha(buffer: Buffer, inicioLinha: number, fim: number): number {
   let pos = inicioLinha;
 
-  while (pos < fim && (buffer[pos] === 10 || buffer[pos] === 13)) pos++;
+  while (
+    pos < fim &&
+    (buffer[pos] === 10 || buffer[pos] === 13 || buffer[pos] === 32 || buffer[pos] === 9)
+  ) { pos++; }
 
   if (pos >= fim) return -1;
 
